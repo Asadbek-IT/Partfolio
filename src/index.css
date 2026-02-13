@@ -1,0 +1,389 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   BASE RESET & ROOT
+   ───────────────────────────────────────────────────────────────────────────── */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    /* Native smooth scroll for touch devices (Lenis is disabled there). */
+    scroll-behavior: smooth;
+    /* Prevent width blowout from absolutely-positioned children. */
+    overflow-x: hidden;
+    /* Promote html to its own compositing layer — stops aurora from
+       triggering full-page repaints on scroll. */
+    transform: translateZ(0);
+  }
+
+  body {
+    @apply font-body antialiased bg-dark text-white;
+    overflow-x: hidden;
+    /* When menu is open, JS adds .menu-open which locks scroll. */
+  }
+
+  body.menu-open {
+    overflow: hidden;
+    /* On iOS, overflow:hidden alone doesn't stop scroll.
+       position:fixed is the only bulletproof solution. */
+    position: fixed;
+    width: 100%;
+  }
+
+  /* ── Noise Texture ──────────────────────────────────────────────────────────
+     Pure CSS-only approach: a repeating base64 PNG tile via background-image.
+     This avoids the heavy inline SVG feTurbulence filter which is re-rasterised
+     on every paint, costing significant GPU time on mobile.
+     The tile is generated once, cached by the browser, and never repaints.
+     z-index sits above aurora (z:0) and below content (z:1).
+  */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    /* 64×64 grayscale noise tile — zero JavaScript, zero repaints. */
+    background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABbUlEQVR4nO2aMQ6CQBBFB2IhBKIQ0RJCL+ARtNJKuYiFkEAtGCs9gCUcwhs4gScwHIBKJe5/YUnYnZl9b3f2J5uQkJCQkJCQkJCQkJCQ0HcsyzIPhP2u6/pZCCEKAOi6ruu6LgghRAAQgMTMzMzMzMzMzMzMzMzMzMzMzMzMzMzM7H+MMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYYY4wxxhhjjDHGGGOMMcYY8wFHVgEBUhRXaQAAAABJRU5ErkJggg==");
+    opacity: 0.04;
+    pointer-events: none;
+    z-index: 9999;
+    /* will-change: nothing — this element never animates. */
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   AURORA BACKGROUND — Single GPU compositing layer
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/*
+  Performance contract:
+  1. `position: fixed` — removes it from document flow, no reflow on scroll.
+  2. `transform: translateZ(0)` — forces GPU compositing layer creation.
+  3. `will-change: transform` — hints to browser to promote ahead of first frame.
+  4. `contain: strict` — tells the browser this element is self-contained;
+     its paint/layout changes cannot affect the rest of the document.
+  5. The animation ONLY uses `transform` — the one CSS property that never
+     triggers layout or paint, only the cheap "composite" step.
+*/
+.aurora-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Two orb layers, animated independently for organic movement.
+   Using pseudo-elements avoids extra DOM nodes. */
+.aurora-background::before,
+.aurora-background::after {
+  content: '';
+  position: absolute;
+  /* 150vmax ensures coverage at every viewport size */
+  width: 150vmax;
+  height: 150vmax;
+  border-radius: 50%;
+  /* transform-origin center so rotation looks natural */
+  transform-origin: center center;
+}
+
+.aurora-background::before {
+  top: -40vmax;
+  left: -30vmax;
+  background: radial-gradient(
+    circle at center,
+    rgba(79, 70, 229, 0.18) 0%,
+    rgba(0, 217, 255, 0.10) 35%,
+    transparent 70%
+  );
+  animation: aurora-orb-a 25s ease-in-out infinite;
+}
+
+.aurora-background::after {
+  bottom: -40vmax;
+  right: -30vmax;
+  background: radial-gradient(
+    circle at center,
+    rgba(139, 92, 246, 0.18) 0%,
+    rgba(236, 72, 153, 0.10) 35%,
+    transparent 70%
+  );
+  animation: aurora-orb-b 30s ease-in-out infinite;
+  animation-delay: -10s; /* stagger so orbs never overlap perfectly */
+}
+
+/*
+  Only `transform` is animated — guaranteed compositor-only, zero paint cost.
+  Scale replaces blur changes (blur is expensive to animate).
+*/
+@keyframes aurora-orb-a {
+  0%,  100% { transform: translate(0,     0)     scale(1);    }
+  25%        { transform: translate(8vw,  6vh)   scale(1.1);  }
+  50%        { transform: translate(4vw,  12vh)  scale(0.95); }
+  75%        { transform: translate(-6vw, 5vh)   scale(1.05); }
+}
+
+@keyframes aurora-orb-b {
+  0%,  100% { transform: translate(0,    0)     scale(1);    }
+  30%        { transform: translate(-8vw, -6vh)  scale(1.08); }
+  60%        { transform: translate(-4vw, -12vh) scale(0.92); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MARQUEE — Pure CSS infinite scroll (replaces heavy GSAP loop)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.marquee-track {
+  display: flex;
+  width: max-content;   /* exactly as wide as all items */
+  gap: 2rem;
+  /* will-change only during active animation */
+  will-change: transform;
+  animation: marquee-scroll 40s linear infinite;
+}
+
+/* Pause on hover — gives users a chance to read items */
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* Respects user's reduced-motion preference — accessibility win */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+}
+
+@keyframes marquee-scroll {
+  /* Translates exactly one copy-width so the seam is invisible */
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   COMPONENTS
+   ───────────────────────────────────────────────────────────────────────────── */
+@layer components {
+
+  /* ── Text Glow Hover ──────────────────────────────────────────────────────
+     CRITICAL: Wrapped in `@media (hover: hover)` so it never fires on
+     touch devices. On mobile, touch events fire both touchstart AND
+     a synthetic mouseover, which would briefly render illegible white
+     text-fill on tap if this rule weren't guarded.
+  */
+  .text-glow-hover {
+    /* Default: crisp white, no clip tricks */
+    color: #ffffff;
+    /* GPU hint for browsers that support it */
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .text-glow-hover {
+      /* Switch to gradient-clip mode only for real hover devices */
+      background: linear-gradient(90deg, #fff 0%, #fff 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-size: 200% 100%;
+      background-position: 100% 0;
+      transition: background-position 0.6s ease;
+    }
+
+    .text-glow-hover:hover {
+      /* Shift to the cyan→indigo gradient on hover */
+      background-image: linear-gradient(
+        90deg,
+        #00d9ff 0%,
+        #4f46e5 33%,
+        #8b5cf6 66%,
+        #00d9ff 100%
+      );
+      background-size: 200% 100%;
+      animation: gradient-pan 3s linear infinite;
+    }
+  }
+
+  @keyframes gradient-pan {
+    0%   { background-position: 0%   50%; }
+    100% { background-position: 200% 50%; }
+  }
+
+  /* ── Luxury Card ──────────────────────────────────────────────────────────
+     will-change added so the translateY lift is compositor-only.
+  */
+  .luxury-card {
+    @apply bg-dark-card border border-white/5 rounded-2xl;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.4s ease,
+                box-shadow 0.4s ease;
+    will-change: transform;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .luxury-card:hover {
+      border-color: rgba(0, 217, 255, 0.3);
+      box-shadow: 0 20px 60px rgba(0, 217, 255, 0.1);
+      transform: translateY(-4px);
+    }
+  }
+
+  /* ── Primary Button ─────────────────────────────────────────────────────── */
+  .btn-primary {
+    @apply px-8 py-4 rounded-full font-semibold text-dark;
+    background: linear-gradient(135deg, #00d9ff 0%, #4f46e5 100%);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    will-change: transform;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .btn-primary:hover {
+      transform: scale(1.04);
+      box-shadow: 0 8px 30px rgba(0, 217, 255, 0.4);
+    }
+  }
+
+  /* Ripple */
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0);
+    border-radius: inherit;
+    transition: background 0.3s ease;
+  }
+
+  .btn-primary:active::after {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  /* ── Line Clip Container (for GSAP yPercent reveals) ─────────────────────
+     The outer .line-clip hides overflow so the animating inner element
+     slides in from below without flashing outside its boundary.
+  */
+  .line-clip {
+    overflow: hidden;
+    /* Explicit height prevents CLS while GSAP sets the initial y offset */
+    display: block;
+  }
+
+  /* ── Navbar scroll-aware background ────────────────────────────────────── */
+  .navbar-scrolled {
+    background: rgba(5, 5, 5, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  /* ── Menu Overlay ───────────────────────────────────────────────────────── */
+  .menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    /* Sit above everything including navbar */
+    z-index: 998;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    /* GPU layer */
+    transform: translateZ(0);
+    will-change: opacity, transform;
+    /* Clip so sliding child elements don't overflow during animation */
+    overflow: hidden;
+    background: linear-gradient(135deg, #050505 0%, #0a0a0a 50%, #050505 100%);
+    /* Pointer events managed via JS (none when closed, auto when open) */
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  .menu-overlay.is-open {
+    pointer-events: auto;
+    visibility: visible; /* visibility toggled before opacity for a11y */
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   UTILITIES
+   ───────────────────────────────────────────────────────────────────────────── */
+@layer utilities {
+  /* Gradient text helper */
+  .clip-text {
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* aspect-ratio polyfill wrapper */
+  .aspect-square {
+    aspect-ratio: 1 / 1;
+  }
+
+  .aspect-portrait {
+    aspect-ratio: 3 / 4;
+  }
+
+  /* Prevent layout shift on images */
+  .img-stable {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GLOBAL POLISH
+   ───────────────────────────────────────────────────────────────────────────── */
+
+::selection {
+  background: rgba(0, 217, 255, 0.25);
+  color: #fff;
+}
+
+::-webkit-scrollbar        { width: 6px; }
+::-webkit-scrollbar-track  { background: #0a0a0a; }
+::-webkit-scrollbar-thumb  {
+  background: linear-gradient(180deg, #00d9ff, #4f46e5);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #4f46e5, #8b5cf6);
+}
+
+/* Hide custom scrollbar on touch devices — they have their own overlay */
+@media (pointer: coarse) {
+  ::-webkit-scrollbar { display: none; }
+  html { scrollbar-width: none; }
+}
+
+*:focus-visible {
+  outline: 2px solid #00d9ff;
+  outline-offset: 3px;
+}
